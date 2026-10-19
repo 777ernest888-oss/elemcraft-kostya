@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Элементкрафт v10 — Лаборатория Кости</title>
+<title>Элементкрафт v11 — Лаборатория Кости</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { font-family:Arial, sans-serif; background:#1a1a2e; color:#fff; overflow:hidden; height:100vh; }
@@ -40,7 +40,7 @@ button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none;
 </head>
 <body>
 
-<div id="version">v10</div>
+<div id="version">v11</div>
 
 <div id="game">
   <canvas id="cvs" width="320" height="320"></canvas>
@@ -130,7 +130,8 @@ function shuffle(arr){
   return arr;
 }
 
-function createWorldForMission(missionNum){
+// Создаёт НОВЫЙ мир с рандомным размещением нужных элементов (только при старте)
+function createFreshWorld(missionNum){
   world=[];
   for(let y=0;y<ROWS;y++){
     world[y]=[];
@@ -141,8 +142,7 @@ function createWorldForMission(missionNum){
  
   if(missionNum>=REC.length) return;
  
-  const rec=REC[missionNum];
-  const needed=[...rec.i];
+  const needed=[...REC[missionNum].i];
   shuffle(needed);
  
   const positions=[];
@@ -154,8 +154,7 @@ function createWorldForMission(missionNum){
   shuffle(positions);
  
   for(let i=0;i<needed.length;i++){
-    const pos=positions[i];
-    world[pos.y][pos.x]=needed[i];
+    world[positions[i].y][positions[i].x]=needed[i];
   }
  
   for(let y=0;y<ROWS;y++){
@@ -167,12 +166,58 @@ function createWorldForMission(missionNum){
   }
 }
 
+// ГЛАВНАЯ ГАРАНТИЯ: проверяет поле+инвентарь и дозаполняет недостающие элементы
+function ensureMissionElements(){
+  if(mission>=REC.length) return;
+  const rec=REC[mission];
+ 
+  const needed={};
+  for(let el of rec.i) needed[el]=(needed[el]||0)+1;
+ 
+  for(let sym in needed){
+    let onField=0;
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        if(world[y][x]===sym) onField++;
+      }
+    }
+    const inInv=inv[sym]||0;
+    const missing=needed[sym]-(onField+inInv);
+    if(missing<=0) continue;
+   
+    // Добавляем в случайные пустые клетки
+    let added=0, guard=0;
+    while(added<missing && guard<3000){
+      guard++;
+      const x=Math.floor(Math.random()*COLS);
+      const y=Math.floor(Math.random()*ROWS);
+      if(!world[y][x]){
+        world[y][x]=sym;
+        added++;
+      }
+    }
+    // Если пустых не хватило — перезаписываем ненужные элементы
+    guard=0;
+    while(added<missing && guard<3000){
+      guard++;
+      const x=Math.floor(Math.random()*COLS);
+      const y=Math.floor(Math.random()*ROWS);
+      const cur=world[y][x];
+      if(cur && cur!==sym && !needed[cur]){
+        world[y][x]=sym;
+        added++;
+      }
+    }
+  }
+}
+
 function init(){
   slots=[null,null,null,null,null];
   inv={};
   mission=0;
  
-  createWorldForMission(0);
+  createFreshWorld(0);
+  ensureMissionElements();
  
   draw();
   renderHot();
@@ -221,7 +266,6 @@ cvs.addEventListener('touchstart', e=>{
   handleTap(t.clientX, t.clientY);
 }, {passive:false});
 
-// ===== РЕНДЕР БЕЗ ОБРАБОТЧИКОВ (только data-атрибуты) =====
 function renderItems(containerId){
   const h=document.getElementById(containerId);
   h.innerHTML='';
@@ -238,19 +282,14 @@ function renderItems(containerId){
 function renderHot(){ renderItems('hotbar'); }
 function renderCraftHot(){ renderItems('craftHotbar'); }
 
-// ===== ДЕЛЕГИРОВАНИЕ: один обработчик на контейнер, навсегда =====
 document.getElementById('hotbar').addEventListener('click', function(e){
   const item=e.target.closest('.item');
-  if(item && item.dataset.sym){
-    addSlot(item.dataset.sym);
-  }
+  if(item && item.dataset.sym) addSlot(item.dataset.sym);
 });
 
 document.getElementById('craftHotbar').addEventListener('click', function(e){
   const item=e.target.closest('.item');
-  if(item && item.dataset.sym){
-    addSlot(item.dataset.sym);
-  }
+  if(item && item.dataset.sym) addSlot(item.dataset.sym);
 });
 
 document.getElementById('slots').addEventListener('click', function(e){
@@ -280,6 +319,8 @@ function addSlot(el){
 
 function openCraft(){
   slots=[null,null,null,null,null];
+  ensureMissionElements();
+  draw();
   document.getElementById('craftModal').classList.remove('hidden');
   document.getElementById('craftModal').classList.add('show');
   renderSlots();
@@ -348,9 +389,10 @@ function doCraft(){
    
     mission++;
    
-    if(mission<REC.length){
-      createWorldForMission(mission);
-    }
+    // Гарантируем элементы для НОВОЙ миссии и СРАЗУ перерисовываем поле
+    ensureMissionElements();
+    draw();
+    renderHot();
    
     if(mission>=REC.length){
       setTimeout(()=>{
@@ -541,7 +583,8 @@ function resetGame(){
   inv={};
   mission=0;
   slots=[null,null,null,null,null];
-  createWorldForMission(0);
+  createFreshWorld(0);
+  ensureMissionElements();
   draw();
   renderHot();
   updateMissionText();
