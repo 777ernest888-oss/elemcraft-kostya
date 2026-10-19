@@ -1,15 +1,16 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Элементкрафт — Лаборатория Кости</title>
+<title>Элементкрафт v9 — Лаборатория Кости</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { font-family:Arial, sans-serif; background:#1a1a2e; color:#fff; overflow:hidden; height:100vh; }
 #game { width:100%; max-width:400px; margin:0 auto; display:flex; flex-direction:column; height:100vh; }
 canvas { display:block; background:#87CEEB; border:2px solid #000; flex-shrink:0; }
 #ui { padding:6px; background:#16213e; flex-shrink:0; }
+#version { position:fixed; top:5px; right:5px; background:#e94560; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; z-index:999; }
 button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:15px; }
 #hotbar { display:flex; gap:4px; overflow-x:auto; min-height:35px; margin:4px 0; }
 .item { background:#0f3460; border:2px solid #4ecca3; border-radius:6px; padding:5px; min-width:40px; text-align:center; cursor:pointer; }
@@ -39,12 +40,14 @@ button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none;
 </head>
 <body>
 
+<div id="version">v9</div>
+
 <div id="game">
   <canvas id="cvs" width="320" height="320"></canvas>
   <div id="ui">
     <div id="msg"><b>Менделеев:</b> Тапай по цветным блокам! Найди 2 H и 1 O для воды.</div>
     <div id="hotbar"></div>
-    <button id="labBtn" onclick="openCraft()"> ЛАБОРАТОРИЯ</button>
+    <button id="labBtn" onclick="openCraft()">🔬 ЛАБОРАТОРИЯ</button>
     <button onclick="resetGame()">🔄 ЗАНОВО</button>
   </div>
 </div>
@@ -93,7 +96,7 @@ button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none;
 
 <div class="overlay hidden" id="finalModal">
   <div class="modal" style="text-align:center;">
-    <h2 style="font-size:32px;"> ПОЕХАЛИ!</h2>
+    <h2 style="font-size:32px;">🚀 ПОЕХАЛИ!</h2>
     <p style="font-size:20px; color:#4ecca3; font-weight:bold;">Миссия выполнена, Костя!</p>
     <p>Ты собрал все вещества и запустил ракету!</p>
     <div id="videoContainer"></div>
@@ -102,12 +105,12 @@ button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none;
 </div>
 
 <script>
-const CFG = { videoUrl: 'pozdravlenie.mp4', saveVersion: 4 };
+const CFG = { videoUrl: '' };
 
 const EL = {H:'#a5d8ff',O:'#d0ebff',C:'#495057',N:'#b197fc',Na:'#dee2e6',Cl:'#69db7c',Si:'#ffd43b',S:'#ffe066',Ca:'#f8f9fa',Fe:'#adb5bd',Cu:'#e8590c',Zn:'#74c0fc'};
 const REC = [
   {i:['H','H','O'],r:'water',n:'Вода',fact:'💧 Вода — основа жизни! Без неё не было бы ни тебя, ни меня, ни даже этой лаборатории!',type:'water'},
-  {i:['H','H','O','O'],r:'fuel',n:'Топливо',fact:'🚀 Настоящие ракеты летают на жидком водороде и кислороде!',type:'fuel'},
+  {i:['H','H','O','O'],r:'fuel',n:'Топливо',fact:' Настоящие ракеты летают на жидком водороде и кислороде!',type:'fuel'},
   {i:['Na','Cl'],r:'salt',n:'Соль',fact:'🧂 Натрий взрывается в воде, хлор — ядовитый газ. А вместе — вкусная соль!',type:'linear',atoms:['Na','Cl']},
   {i:['Si','O','O'],r:'glass',n:'Стекло',fact:'✨ Стекло — это расплавленный песок. Окна и экраны — бывший песок!',type:'linear3',atoms:['O','Si','O']},
   {i:['Cu','Zn'],r:'brass',n:'Латунь',fact:'🔩 Латунь крепче меди и цинка по отдельности. Так люди научились делать сплавы!',type:'linear',atoms:['Cu','Zn']}
@@ -119,89 +122,70 @@ const cvs=document.getElementById('cvs'), ctx=cvs.getContext('2d');
 const ROWS=8, COLS=8;
 const TILE=40;
 
-function init(){
-  slots=[null,null,null,null,null];
- 
-  const saved=loadSave();
- 
-  if(saved && saved.version === CFG.saveVersion){
-    mission=saved.mission||0;
-    inv=saved.inv||{};
-    world=saved.world||[];
-    // Восстанавливаем мир до нужного размера на всякий случай
-    while(world.length<ROWS){world.push([]);}
-    for(let y=0;y<ROWS;y++){
-      while(world[y].length<COLS){world[y].push(null);}
+// Функция перемешивания массива (Fisher-Yates)
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// Создаёт мир с рандомным размещением нужных элементов
+function createWorldForMission(missionNum){
+  world=[];
+  for(let y=0;y<ROWS;y++){
+    world[y]=[];
+    for(let x=0;x<COLS;x++){
+      world[y][x]=null;
     }
-  } else {
-    localStorage.removeItem('elemcraft_save');
-    mission=0;
-    inv={};
-    world=[];
-    for(let y=0;y<ROWS;y++){world[y]=[];for(let x=0;x<COLS;x++)world[y][x]=null;}
   }
  
-  // ВСЕГДА гарантируем элементы для текущей миссии
-  ensureElementsForNextMission();
+  if(missionNum>=REC.length) return;
  
-  // Заполняем пустые клетки случайными элементами
+  const rec=REC[missionNum];
+ 
+  // Собираем список всех нужных элементов (например: ['H','H','O'])
+  const needed=[...rec.i];
+ 
+  // Перемешиваем их
+  shuffle(needed);
+ 
+  // Создаём список всех позиций на поле и перемешиваем
+  const positions=[];
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
-      if(!world[y][x] && Math.random()<0.5){
+      positions.push({y,x});
+    }
+  }
+  shuffle(positions);
+ 
+  // Размещаем нужные элементы в случайных позициях
+  for(let i=0;i<needed.length;i++){
+    const pos=positions[i];
+    world[pos.y][pos.x]=needed[i];
+  }
+ 
+  // Заполняем остальные клетки случайными элементами
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(!world[y][x]){
         world[y][x]=Object.keys(EL)[Math.floor(Math.random()*12)];
       }
     }
   }
+}
+
+function init(){
+  slots=[null,null,null,null,null];
+  inv={};
+  mission=0;
+ 
+  createWorldForMission(0);
  
   draw();
   renderHot();
   updateMissionText();
-}
-
-// Главная функция: гарантирует, что на ПОЛЕ есть все нужные элементы для текущей миссии
-function ensureElementsForNextMission(){
-  if(mission>=REC.length) return;
-  const rec=REC[mission];
-  const counts={};
-  for(let el of rec.i) counts[el]=(counts[el]||0)+1;
- 
-  for(let [sym, need] of Object.entries(counts)){
-    // Считаем ТОЛЬКО на поле (не в инвентаре!)
-    let inWorld=0;
-    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(world[y][x]===sym)inWorld++;
-   
-    const deficit=need-inWorld;
-    if(deficit<=0) continue;
-   
-    // Сначала ищем пустые клетки
-    let placed=0, attempts=0;
-    while(placed<deficit && attempts<500){
-      const x=Math.floor(Math.random()*COLS);
-      const y=Math.floor(Math.random()*ROWS);
-      if(!world[y][x]){world[y][x]=sym; placed++;}
-      attempts++;
-    }
-    // Если не хватило пустых — перезаписываем случайные клетки с другими элементами
-    if(placed<deficit){
-      let extra=0;
-      while(extra<deficit-placed){
-        const x=Math.floor(Math.random()*COLS);
-        const y=Math.floor(Math.random()*ROWS);
-        if(world[y][x] && world[y][x]!==sym){
-          world[y][x]=sym;
-          extra++;
-        }
-      }
-    }
-  }
-}
-
-function getNeededElements(){
-  if(mission>=REC.length) return [];
-  const rec=REC[mission];
-  const counts={};
-  for(let el of rec.i) counts[el]=(counts[el]||0)+1;
-  return Object.entries(counts).map(([symbol,count])=>({symbol,count}));
 }
 
 function draw(){
@@ -231,7 +215,6 @@ function handleTap(clientX, clientY){
     world[y][x]=null;
     draw();
     renderHot();
-    saveGame();
   } else {
     const flash=document.createElement('div');
     flash.className='flash';
@@ -343,13 +326,15 @@ function doCraft(){
     document.getElementById('successModal').classList.add('show');
    
     mission++;
-    // СРАЗУ добавляем элементы для новой миссии
-    ensureElementsForNextMission();
-    saveGame();
+   
+    // Пересоздаём мир для новой миссии
+    if(mission<REC.length){
+      createWorldForMission(mission);
+    }
    
     if(mission>=REC.length){
       setTimeout(()=>{
-        document.getElementById('msg').innerHTML='<b>🚀 Всё готово!</b> Нажми кнопку запуска ракеты!';
+        document.getElementById('msg').innerHTML='<b> Всё готово!</b> Нажми кнопку запуска ракеты!';
         if(!document.getElementById('rocketBtn')){
           const btn=document.createElement('button');
           btn.id='rocketBtn';
@@ -423,7 +408,7 @@ function createStars(){
   for(let i=0;i<15;i++){
     const star=document.createElement('div');
     star.className='star';
-    star.textContent=['⭐','','✨','🎉'][Math.floor(Math.random()*4)];
+    star.textContent=['⭐','','✨',''][Math.floor(Math.random()*4)];
     star.style.left=Math.random()*100+'%';
     star.style.animationDelay=Math.random()*0.5+'s';
     document.body.appendChild(star);
@@ -481,7 +466,7 @@ function launchRocket(){
   const vc=document.getElementById('videoContainer');
  
   if(!CFG.videoUrl){
-    vc.innerHTML='<p style="color:#4ecca3;"> Видео-поздравление будет здесь!</p>';
+    vc.innerHTML='<p style="color:#4ecca3;">🎬 Видео-поздравление будет здесь!</p>';
   } else if(CFG.videoUrl.includes('vk.com/video_ext')){
     vc.innerHTML=CFG.videoUrl;
   } else if(CFG.videoUrl.includes('rutube.ru')){
@@ -533,37 +518,14 @@ function updateMissionText(){
 
 function resetGame(){
   if(!confirm('Начать игру заново? Весь прогресс будет потерян.')) return;
-  localStorage.removeItem('elemcraft_save');
   inv={};
   mission=0;
   slots=[null,null,null,null,null];
-  world=[];
-  for(let y=0;y<ROWS;y++){world[y]=[];for(let x=0;x<COLS;x++)world[y][x]=null;}
-  ensureElementsForNextMission();
-  for(let y=0;y<ROWS;y++){
-    for(let x=0;x<COLS;x++){
-      if(!world[y][x] && Math.random()<0.5){
-        world[y][x]=Object.keys(EL)[Math.floor(Math.random()*12)];
-      }
-    }
-  }
+  createWorldForMission(0);
   draw();
   renderHot();
   updateMissionText();
   document.getElementById('msg').innerHTML='<b>Менделеев:</b> Тапай по цветным блокам! Найди 2 H и 1 O для воды.';
-}
-
-function saveGame(){
-  try{
-    localStorage.setItem('elemcraft_save', JSON.stringify({version:CFG.saveVersion, mission, inv, world}));
-  }catch(e){}
-}
-
-function loadSave(){
-  try{
-    const d=localStorage.getItem('elemcraft_save');
-    return d?JSON.parse(d):null;
-  }catch(e){return null;}
 }
 
 window.addEventListener('load', init);
