@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Элементкрафт v9 — Лаборатория Кости</title>
+<title>Элементкрафт v10 — Лаборатория Кости</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { font-family:Arial, sans-serif; background:#1a1a2e; color:#fff; overflow:hidden; height:100vh; }
@@ -13,7 +13,7 @@ canvas { display:block; background:#87CEEB; border:2px solid #000; flex-shrink:0
 #version { position:fixed; top:5px; right:5px; background:#e94560; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; z-index:999; }
 button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:15px; }
 #hotbar { display:flex; gap:4px; overflow-x:auto; min-height:35px; margin:4px 0; }
-.item { background:#0f3460; border:2px solid #4ecca3; border-radius:6px; padding:5px; min-width:40px; text-align:center; cursor:pointer; }
+.item { background:#0f3460; border:2px solid #4ecca3; border-radius:6px; padding:5px; min-width:40px; text-align:center; cursor:pointer; flex-shrink:0; }
 .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
 .overlay.show { display:flex; }
 .modal { background:#16213e; border:2px solid #4ecca3; border-radius:12px; padding:20px; max-width:90%; width:350px; max-height:90%; overflow-y:auto; }
@@ -40,7 +40,7 @@ button { width:100%; padding:8px; margin:3px 0; background:#4ecca3; border:none;
 </head>
 <body>
 
-<div id="version">v9</div>
+<div id="version">v10</div>
 
 <div id="game">
   <canvas id="cvs" width="320" height="320"></canvas>
@@ -110,7 +110,7 @@ const CFG = { videoUrl: 'pozdravlenie.mp4' };
 const EL = {H:'#a5d8ff',O:'#d0ebff',C:'#495057',N:'#b197fc',Na:'#dee2e6',Cl:'#69db7c',Si:'#ffd43b',S:'#ffe066',Ca:'#f8f9fa',Fe:'#adb5bd',Cu:'#e8590c',Zn:'#74c0fc'};
 const REC = [
   {i:['H','H','O'],r:'water',n:'Вода',fact:'💧 Вода — основа жизни! Без неё не было бы ни тебя, ни меня, ни даже этой лаборатории!',type:'water'},
-  {i:['H','H','O','O'],r:'fuel',n:'Топливо',fact:' Настоящие ракеты летают на жидком водороде и кислороде!',type:'fuel'},
+  {i:['H','H','O','O'],r:'fuel',n:'Топливо',fact:'🚀 Настоящие ракеты летают на жидком водороде и кислороде!',type:'fuel'},
   {i:['Na','Cl'],r:'salt',n:'Соль',fact:'🧂 Натрий взрывается в воде, хлор — ядовитый газ. А вместе — вкусная соль!',type:'linear',atoms:['Na','Cl']},
   {i:['Si','O','O'],r:'glass',n:'Стекло',fact:'✨ Стекло — это расплавленный песок. Окна и экраны — бывший песок!',type:'linear3',atoms:['O','Si','O']},
   {i:['Cu','Zn'],r:'brass',n:'Латунь',fact:'🔩 Латунь крепче меди и цинка по отдельности. Так люди научились делать сплавы!',type:'linear',atoms:['Cu','Zn']}
@@ -122,7 +122,6 @@ const cvs=document.getElementById('cvs'), ctx=cvs.getContext('2d');
 const ROWS=8, COLS=8;
 const TILE=40;
 
-// Функция перемешивания массива (Fisher-Yates)
 function shuffle(arr){
   for(let i=arr.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));
@@ -131,7 +130,6 @@ function shuffle(arr){
   return arr;
 }
 
-// Создаёт мир с рандомным размещением нужных элементов
 function createWorldForMission(missionNum){
   world=[];
   for(let y=0;y<ROWS;y++){
@@ -144,14 +142,9 @@ function createWorldForMission(missionNum){
   if(missionNum>=REC.length) return;
  
   const rec=REC[missionNum];
- 
-  // Собираем список всех нужных элементов (например: ['H','H','O'])
   const needed=[...rec.i];
- 
-  // Перемешиваем их
   shuffle(needed);
  
-  // Создаём список всех позиций на поле и перемешиваем
   const positions=[];
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
@@ -160,13 +153,11 @@ function createWorldForMission(missionNum){
   }
   shuffle(positions);
  
-  // Размещаем нужные элементы в случайных позициях
   for(let i=0;i<needed.length;i++){
     const pos=positions[i];
     world[pos.y][pos.x]=needed[i];
   }
  
-  // Заполняем остальные клетки случайными элементами
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
       if(!world[y][x]){
@@ -230,21 +221,51 @@ cvs.addEventListener('touchstart', e=>{
   handleTap(t.clientX, t.clientY);
 }, {passive:false});
 
-function renderItems(containerId, clickHandler){
+// ===== РЕНДЕР БЕЗ ОБРАБОТЧИКОВ (только data-атрибуты) =====
+function renderItems(containerId){
   const h=document.getElementById(containerId);
   h.innerHTML='';
   for(let [k,v] of Object.entries(inv)){
     if(v<=0) continue;
     const d=document.createElement('div');
     d.className='item';
+    d.dataset.sym=k;
     d.innerHTML='<b style="color:'+EL[k]+'; font-size:18px;">'+k+'</b><br><small>'+v+'</small>';
-    d.onclick=(function(sym){return function(){clickHandler(sym);};})(k);
     h.appendChild(d);
   }
 }
 
-function renderHot(){ renderItems('hotbar', addSlot); }
-function renderCraftHot(){ renderItems('craftHotbar', addSlot); }
+function renderHot(){ renderItems('hotbar'); }
+function renderCraftHot(){ renderItems('craftHotbar'); }
+
+// ===== ДЕЛЕГИРОВАНИЕ: один обработчик на контейнер, навсегда =====
+document.getElementById('hotbar').addEventListener('click', function(e){
+  const item=e.target.closest('.item');
+  if(item && item.dataset.sym){
+    addSlot(item.dataset.sym);
+  }
+});
+
+document.getElementById('craftHotbar').addEventListener('click', function(e){
+  const item=e.target.closest('.item');
+  if(item && item.dataset.sym){
+    addSlot(item.dataset.sym);
+  }
+});
+
+document.getElementById('slots').addEventListener('click', function(e){
+  const item=e.target.closest('.item');
+  if(!item || item.dataset.idx===undefined) return;
+  const idx=parseInt(item.dataset.idx);
+  const sym=slots[idx];
+  if(sym){
+    inv[sym]++;
+    slots[idx]=null;
+    renderSlots();
+    renderHot();
+    renderCraftHot();
+  }
+});
 
 function addSlot(el){
   if(inv[el]>0 && slots.includes(null)){
@@ -275,9 +296,9 @@ function renderSlots(){
     d.className='item';
     d.style.width='55px';
     d.style.height='55px';
+    d.dataset.idx=i;
     if(el){
       d.innerHTML='<b style="color:'+EL[el]+'; font-size:22px;">'+el+'</b>';
-      d.onclick=(function(idx,sym){return function(){inv[sym]++;slots[idx]=null;renderSlots();renderHot();renderCraftHot();};})(i,el);
     }
     s.appendChild(d);
   });
@@ -327,14 +348,13 @@ function doCraft(){
    
     mission++;
    
-    // Пересоздаём мир для новой миссии
     if(mission<REC.length){
       createWorldForMission(mission);
     }
    
     if(mission>=REC.length){
       setTimeout(()=>{
-        document.getElementById('msg').innerHTML='<b> Всё готово!</b> Нажми кнопку запуска ракеты!';
+        document.getElementById('msg').innerHTML='<b>🚀 Всё готово!</b> Нажми кнопку запуска ракеты!';
         if(!document.getElementById('rocketBtn')){
           const btn=document.createElement('button');
           btn.id='rocketBtn';
@@ -408,7 +428,7 @@ function createStars(){
   for(let i=0;i<15;i++){
     const star=document.createElement('div');
     star.className='star';
-    star.textContent=['⭐','','✨',''][Math.floor(Math.random()*4)];
+    star.textContent=['⭐','🌟','✨','🎉'][Math.floor(Math.random()*4)];
     star.style.left=Math.random()*100+'%';
     star.style.animationDelay=Math.random()*0.5+'s';
     document.body.appendChild(star);
